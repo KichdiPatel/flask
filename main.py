@@ -84,6 +84,7 @@ try:
     print("Database connected successfully")
 except Exception as e:
     print(f"Error connecting to the database: {e}")
+    db = None
 
 # Database model
 class User(db.Model):
