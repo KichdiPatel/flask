@@ -78,8 +78,12 @@ app.config["SQLALCHEMY_DATABASE_URI"] = DATABASE_URL
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 CORS(app)
 
-db = SQLAlchemy(app)
-
+# db = SQLAlchemy(app)
+try:
+    db = SQLAlchemy(app)
+    print("Database connected successfully")
+except Exception as e:
+    print(f"Error connecting to the database: {e}")
 
 # Database model
 class User(db.Model):
