@@ -19,5 +19,5 @@ EXPOSE 8000
 # Define environment variable
 ENV FLASK_APP=main.py
 
-# Run app.py when the container launches
+# Run gunicorn to start the Flask application
 CMD ["gunicorn", "--bind", "0.0.0.0:8000", "main:app"]
