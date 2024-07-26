@@ -1,26 +1,92 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
-  <head>
-      <meta charset="utf-8">
-      <meta name="description" content="alphasec">
-      <meta name="author" content="alphasec">
-      <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-      <title>alphasec</title>
-      <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/css/bootstrap.min.css" integrity="sha384-xOolHFLEh07PJGoPkLv1IbcEPTNtaed2xpHsD9ESMhqIYd0nLMwNLD69Npy4HI+N" crossorigin="anonymous">
-      <link rel="stylesheet" href="static/css/styles.css">
-      <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:500&display=swap">
-      <link rel="icon" href="static/favicon.ico" type="image/x-icon">
-  </head>
-  <body>
-    <div class="row">
-      <h1 class="h1">alphasec</h1>
-    </div>
-    <div class="row">
-      <div>
-      </div>
-    </div>
-    <div class="row">
-      <span class="text-muted small">alphasec © 2024. All rights reserved.</span>
-    </div>
-  </body>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Plaid Link Example</title>
+    <script src="https://cdn.plaid.com/link/v2/stable/link-initialize.js"></script>
+</head>
+<body>
+    <button id="link-button">Connect a bank account</button>
+    <button id="sync-button">Sync Transactions</button>
+    <div id="transactions"></div>
+
+    <script>
+        document.getElementById('link-button').onclick = function () {
+            console.log('Button clicked'); // Debugging statement
+
+            fetch('/api/create_link_token', { method: 'POST' })
+                .then(response => response.json())
+                .then(data => {
+                    console.log('Link token data:', data); // Debugging statement
+                    var handler = Plaid.create({
+                        token: data.link_token,
+                        onSuccess: function (public_token, metadata) {
+                            console.log('Public token:', public_token); // Debugging statement
+                            console.log('Metadata:', metadata); // Debugging statement
+
+                            fetch('/api/set_access_token', {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                },
+                                body: JSON.stringify({
+                                    public_token: public_token,
+                                }),
+                            })
+                            .then(response => response.json())
+                            .then(data => {
+                                console.log('Access token set successfully');
+                            });
+                        },
+                        onExit: function (err, metadata) {
+                            if (err != null) {
+                                console.error('Plaid Link error:', err); // Debugging statement
+                            }
+                        },
+                        onEvent: function (eventName, metadata) {
+                            console.log('Event:', eventName, metadata); // Debugging statement
+                        }
+                    });
+
+                    handler.open();
+                })
+                .catch(error => {
+                    console.error('Error fetching link token:', error); // Debugging statement
+                });
+        };
+
+        document.getElementById('sync-button').onclick = function () {
+            console.log('Sync button clicked'); // Debugging statement
+
+            fetch('/api/new_transactions', { method: 'POST' })
+                .then(response => response.json())
+                .then(data => {
+                    console.log('Transactions data:', data); // Debugging statement
+                    const transactionsDiv = document.getElementById('transactions');
+                    transactionsDiv.innerHTML = '<h2>Latest Transactions</h2>';
+                    const transactionsList = document.createElement('ul');
+                    
+                    if (data.latest_transactions && Array.isArray(data.latest_transactions)) {
+                        console.log('Transactions array:', data.latest_transactions); // Debugging statement
+                        data.latest_transactions.forEach(transaction => {
+                            const listItem = document.createElement('li');
+                            listItem.textContent = `${transaction.date}: ${transaction.name} - ${transaction.amount}`;
+                            transactionsList.appendChild(listItem);
+                        });
+                    } else {
+                        console.log('No transactions array found or it is not an array'); // Debugging statement
+                        const listItem = document.createElement('li');
+                        listItem.textContent = 'No transactions available';
+                        transactionsList.appendChild(listItem);
+                    }
+
+                    transactionsDiv.appendChild(transactionsList);
+                })
+                .catch(error => {
+                    console.error('Error fetching transactions:', error); // Debugging statement
+                });
+        };
+    </script>
+</body>
 </html>
