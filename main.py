@@ -522,5 +522,5 @@ def sms_reply():
 
 
 if __name__ == "__main__":
-    run_hourly_check()
+    #run_hourly_check()
     app.run(port=PORT, debug=True)
