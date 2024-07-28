@@ -34,7 +34,34 @@ PORT = 5000
 
 # database variable
 DATABASE_URL = os.getenv("DATABASE_URL")
-print(DATABASE_URL)
+
+# twilio variables
+ACCOUNT_SID = os.getenv("ACCOUNT_SID")
+TWILIO_AUTH = os.getenv("TWILIO_AUTH")
+USER_PHONE_NUM = os.getenv("USER_PHONE_NUM")
+TWILIO_NUM = os.getenv("TWILIO_NUM")
+
+# Set up the Plaid environment
+host = (
+    plaid.Environment.Sandbox
+    if PLAID_ENV == "sandbox"
+    else plaid.Environment.Production
+)
+
+# Configure the Plaid client
+configuration = plaid.Configuration(
+    host=host,
+    api_key={
+        "clientId": PLAID_CLIENT_ID,
+        "secret": PLAID_SECRET,
+        "plaidVersion": "2020-09-14",
+    },
+)
+
+api_client = plaid.ApiClient(configuration)
+client = plaid_api.PlaidApi(api_client)
+
+products = [Products(product) for product in PLAID_PRODUCTS]
 
 app = Flask(__name__)
 
