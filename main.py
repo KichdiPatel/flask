@@ -427,7 +427,7 @@ def getBudget():
 
     message_lines = []
     for index, row in merged_df.iterrows():
-        line = f"{row['category']}: {row['amount']}/{row['budget']}"
+        line = f"{row['category']}: {math.floor(row['amount'])}/{math.floor(row['budget'])}"
         message_lines.append(line)
     message = "\n".join(message_lines)
 
