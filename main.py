@@ -14,6 +14,28 @@ from threading import Timer
 from twilio.rest import Client
 from twilio.twiml.messaging_response import MessagingResponse
 
+
+# Load environment variables from the .env file
+load_dotenv()
+
+# Load environment variables
+# plaid variables
+PLAID_CLIENT_ID = os.getenv("PLAID_CLIENT_ID")
+PLAID_SECRET = os.getenv("PLAID_SECRET")
+PLAID_ENV = os.getenv("PLAID_ENV", "production")
+PLAID_PRODUCTS = os.getenv("PLAID_PRODUCTS", "transactions").split(",")
+PLAID_COUNTRY_CODES = os.getenv("PLAID_COUNTRY_CODES", "US").split(",")
+PLAID_WEBHOOK_URL = os.getenv("PLAID_WEBHOOK_URL")
+PLAID_REDIRECT_URI = os.getenv("PLAID_REDIRECT_URI")
+PLAID_CLIENT_NAME = os.getenv("PLAID_CLIENT_NAME", "YourAppName")
+# PORT = int(os.getenv("PORT", 8000))
+PORT = 5000
+
+# database variable
+DATABASE_URL = os.getenv("DATABASE_URL")
+print(DATABASE_URL)
+
+
 app = Flask(__name__)
 
 @app.route('/')
