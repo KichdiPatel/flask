@@ -15,6 +15,8 @@ from twilio.rest import Client
 from twilio.twiml.messaging_response import MessagingResponse
 import os
 from dotenv import load_dotenv
+import plaid
+from plaid.api import plaid_api
 
 # Load environment variables from the .env file
 load_dotenv()
