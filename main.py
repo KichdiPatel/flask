@@ -350,7 +350,6 @@ def get_new_transactions():
 
 def hourlyCheck():
     with app.app_context():
-        print("checkpoint 0")
         get_new_transactions()
         current_date = datetime.now(timezone.utc)
         current_month = current_date.replace(
@@ -359,7 +358,6 @@ def hourlyCheck():
 
         # Query the user
         user = User.query.first()
-        print("checkpoint 1")
         if user:
             user_current_month = user.currentMonth.replace(
                 day=1, hour=0, minute=0, second=0, microsecond=0, tzinfo=timezone.utc
@@ -373,13 +371,12 @@ def hourlyCheck():
                 # Update user's currentMonth to the current month
                 user.currentMonth = current_date
                 db.session.add(user)
-            print("checkpoint 2")
             # Check the number of observations in the NewTx database
             new_tx_count = NewTx.query.count()
             if new_tx_count > 0:
                 user.needsReconcile = True
                 sendText(
-                    "You have txs that need to be reconciled. Text ‘reconcile’ to begin"
+                    "You have txs that need to be reconciled. Text ‘reconcile’ to begin. Reply with the transaction name and new details (amount or 'same', new category or 'same') if you want to adjust, or just reply 'approve' to approve this transaction."
                 )
             else:
                 user.needsReconcile = False
@@ -465,8 +462,6 @@ def send_transaction_message(tx):
         f"Amount: {tx.amount}\n"
         f"Category: {tx.category}\n"
         f"Date: {tx.date.strftime('%Y-%m-%d')}\n\n"
-        "Reply with the transaction name and new details (amount, new category or 'same') if you want to adjust, "
-        "or just reply 'approve' to approve this transaction."
     )
     sendText(message)
 
@@ -496,7 +491,8 @@ def sms_reply():
             parts = incoming_msg.split(",")
             if len(parts) == 2:
                 tx_amount, tx_category = parts
-                tx.amount = float(tx_amount.strip())
+                if tx_amount.lower() != "same":
+                    tx.amount = float(tx_amount.strip())
                 if tx_category.lower() != "same":
                     tx.category = tx_category.strip()
 
