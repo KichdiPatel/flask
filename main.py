@@ -464,7 +464,7 @@ def send_transaction_message(tx):
         f"Amount: {tx.amount}\n"
         f"Category: {tx.category}\n"
         f"Date: {tx.date.strftime('%Y-%m-%d')}\n\n"
-        "Reply with the transaction name and new details (amount, category) if you want to adjust, "
+        "Reply with the transaction name and new details (amount, new category or 'same') if you want to adjust, "
         "or just reply 'approve' to approve this transaction."
     )
     sendText(message)
