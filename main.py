@@ -13,7 +13,8 @@ from sqlalchemy import Boolean
 from threading import Timer
 from twilio.rest import Client
 from twilio.twiml.messaging_response import MessagingResponse
-
+import os
+from dotenv import load_dotenv
 
 # Load environment variables from the .env file
 load_dotenv()
@@ -35,7 +36,6 @@ PORT = 5000
 DATABASE_URL = os.getenv("DATABASE_URL")
 print(DATABASE_URL)
 
-
 app = Flask(__name__)
 
 @app.route('/')
@@ -43,14 +43,4 @@ def index():
     return render_template('index.html')
 
 if __name__ == '__main__':
-    app.run(port=5000)
-
-
-app = Flask(__name__)
-
-@app.route('/')
-def index():
-  return render_template('index.html')
-
-if __name__ == '__main__':
-  app.run(port=5000)
+    app.run(port=PORT)
