@@ -19,6 +19,10 @@ import os
 from dotenv import load_dotenv
 import plaid
 from plaid.api import plaid_api
+import logging
+
+# Set up logging
+logging.basicConfig(level=logging.INFO)
 
 # Load environment variables from the .env file
 load_dotenv()
@@ -44,6 +48,11 @@ ACCOUNT_SID = os.getenv("ACCOUNT_SID")
 TWILIO_AUTH = os.getenv("TWILIO_AUTH")
 USER_PHONE_NUM = os.getenv("USER_PHONE_NUM")
 TWILIO_NUM = os.getenv("TWILIO_NUM")
+
+# Verify the DATABASE_URL
+if not DATABASE_URL:
+    logging.error("DATABASE_URL is not set or is empty.")
+    exit(1)
 
 # Set up the Plaid environment
 host = (
@@ -73,7 +82,12 @@ app.config["SQLALCHEMY_DATABASE_URI"] = DATABASE_URL
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 CORS(app)
 
-db = SQLAlchemy(app)
+try:
+    db = SQLAlchemy(app)
+    logging.info("Database initialized successfully.")
+except Exception as e:
+    logging.error(f"Error initializing the database: {e}")
+    exit(1)
 
 @app.route('/')
 def index():
