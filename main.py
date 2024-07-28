@@ -22,6 +22,8 @@ from plaid.api import plaid_api
 import logging
 import psycopg2
 from psycopg2 import OperationalError
+import json
+
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
