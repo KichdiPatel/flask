@@ -157,5 +157,65 @@ def index():
     return render_template('index.html')
 
 
+@app.route("/api/create_link_token", methods=["POST"])
+def create_link_token():
+    try:
+        request = LinkTokenCreateRequest(
+            client_name=PLAID_CLIENT_NAME,
+            country_codes=[CountryCode(code) for code in PLAID_COUNTRY_CODES],
+            language="en",
+            user=LinkTokenCreateRequestUser(client_user_id="user"),
+            products=products,
+            webhook=PLAID_WEBHOOK_URL,
+            redirect_uri=PLAID_REDIRECT_URI,
+        )
+        response = client.link_token_create(request)
+        return jsonify(response.to_dict())
+    except plaid.ApiException as e:
+        print(json.loads(e.body))  # Debugging statement
+        return jsonify(json.loads(e.body))
+
+
+@app.route("/webhook", methods=["POST"])
+def webhook():
+    data = request.get_json()
+    print(f"Webhook received: {json.dumps(data, indent=2)}")
+
+    if "public_token" in data:
+        public_token = data["public_token"]
+        exchange_public_token(public_token)
+
+    return jsonify(status="success"), 200
+
+
+def exchange_public_token(public_token):
+    try:
+        exchange_request = ItemPublicTokenExchangeRequest(public_token=public_token)
+        exchange_response = client.item_public_token_exchange(exchange_request)
+        access_token = exchange_response["access_token"]
+        item_id = exchange_response["item_id"]
+
+        # Save the access token and item ID in the database
+        user = User.query.first()
+        if user is None:
+            user = User(
+                access_token=access_token,
+                item_id=item_id,
+                currentMonth=datetime.now(),
+                needsReconcile=False,
+                currentlyReconciling=False,
+            )
+        else:
+            user.access_token = access_token
+            user.item_id = item_id
+        db.session.add(user)
+        db.session.commit()
+
+        print(f"Access token: {access_token}")
+        print(f"Item ID: {item_id}")
+    except plaid.ApiException as e:
+        print(json.loads(e.body))
+
+
 if __name__ == "__main__":
     app.run(port=PORT, debug=True)
