@@ -548,4 +548,5 @@ def sms_reply():
     return str(resp)
 
 if __name__ == "__main__":
+    run_hourly_check()
     app.run(port=PORT, debug=True)
