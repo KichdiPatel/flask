@@ -1,4 +1,6 @@
 from flask import Flask, render_template
+from flask_cors import CORS
+from flask_sqlalchemy import SQLAlchemy
 from plaid.model.link_token_create_request import LinkTokenCreateRequest
 from plaid.model.link_token_create_request_user import LinkTokenCreateRequestUser
 from plaid.model.products import Products
