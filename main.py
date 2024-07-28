@@ -65,7 +65,13 @@ client = plaid_api.PlaidApi(api_client)
 
 products = [Products(product) for product in PLAID_PRODUCTS]
 
+# Initialize Flask application
 app = Flask(__name__)
+app.config["SQLALCHEMY_DATABASE_URI"] = DATABASE_URL
+app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+CORS(app)
+
+db = SQLAlchemy(app)
 
 @app.route('/')
 def index():
