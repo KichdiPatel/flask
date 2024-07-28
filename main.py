@@ -547,7 +547,11 @@ def sms_reply():
 
     return str(resp)
 
-if __name__ == "__main__":
-    print("hello")
+def initialize():
     run_hourly_check()
+
+# Ensure this runs regardless of how the script is started
+initialize()
+
+if __name__ == "__main__":
     app.run(port=PORT, debug=True)
