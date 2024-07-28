@@ -20,6 +20,8 @@ from dotenv import load_dotenv
 import plaid
 from plaid.api import plaid_api
 import logging
+import psycopg2
+from psycopg2 import OperationalError
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -37,7 +39,6 @@ PLAID_COUNTRY_CODES = os.getenv("PLAID_COUNTRY_CODES", "US").split(",")
 PLAID_WEBHOOK_URL = os.getenv("PLAID_WEBHOOK_URL")
 PLAID_REDIRECT_URI = os.getenv("PLAID_REDIRECT_URI")
 PLAID_CLIENT_NAME = os.getenv("PLAID_CLIENT_NAME", "YourAppName")
-# PORT = int(os.getenv("PORT", 8000))
 PORT = 5000
 
 # database variable
@@ -83,11 +84,28 @@ app.config["SQLALCHEMY_DATABASE_URI"] = DATABASE_URL
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 CORS(app)
 
+# Test database connection
+try:
+    connection = psycopg2.connect(DATABASE_URL)
+    cursor = connection.cursor()
+    cursor.execute("SELECT version();")
+    db_version = cursor.fetchone()
+    logging.info(f"Connected to PostgreSQL, version: {db_version}")
+except OperationalError as e:
+    logging.error(f"Error connecting to the database: {e}")
+    exit(1)
+finally:
+    if connection:
+        cursor.close()
+        connection.close()
+
+# Initialize SQLAlchemy
 try:
     db = SQLAlchemy(app)
     logging.info("Database initialized successfully.")
 except Exception as e:
     logging.error(f"Error initializing the database: {e}")
+    logging.error(f"Exception details: {e.__class__.__name__}: {e}")
     exit(1)
 
 @app.route('/')
