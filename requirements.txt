@@ -8,3 +8,4 @@ twilio==7.3.0
 python-dotenv==0.19.2
 psycopg2-binary==2.9.1
 gunicorn==20.1.0
+Werkzeug==2.0.3
