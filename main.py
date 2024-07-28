@@ -153,5 +153,4 @@ def index():
 
 
 if __name__ == "__main__":
-    run_hourly_check()
     app.run(port=PORT, debug=True)
