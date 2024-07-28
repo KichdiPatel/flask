@@ -217,5 +217,335 @@ def exchange_public_token(public_token):
         print(json.loads(e.body))
 
 
+@app.route("/api/set_access_token", methods=["POST"])
+def set_access_token():
+    public_token = request.json["public_token"]
+    try:
+        exchange_public_token(public_token)
+        return jsonify({"status": "success"})
+    except plaid.ApiException as e:
+        return jsonify(json.loads(e.body))
+
+
+@app.route("/api/get_transactions", methods=["POST"])
+def get_transactions():
+    user = User.query.first()
+    if not user:
+        return jsonify({"error": "User not found"}), 404
+
+    try:
+        if not user.cursor:
+            cursor = ""
+        else:
+            cursor = user.cursor
+        print(cursor)
+        added = []
+        modified = []
+        removed = []
+        has_more = True
+
+        while has_more:
+            request = TransactionsSyncRequest(
+                access_token=user.access_token,
+                cursor=cursor,
+            )
+            response = client.transactions_sync(request).to_dict()
+            added.extend(response["added"])
+            modified.extend(response["modified"])
+            removed.extend(response["removed"])
+            has_more = response["has_more"]
+            cursor = response["next_cursor"]
+
+        df = pd.DataFrame(added)
+
+        print(df["category_id"].value_counts())
+        # Get current date
+        today = datetime.today().date()
+
+        # Get the first and last date of the current month
+        first_day_of_month = today.replace(day=1)
+        last_day_of_month = (first_day_of_month + pd.offsets.MonthEnd(0)).date()
+
+        # Filter and sort the DataFrame
+        current_month_df = df[
+            (df["date"] >= first_day_of_month) & (df["date"] <= last_day_of_month)
+        ].sort_values(by="date")
+
+        current_month_json = json.loads(current_month_df.to_json(orient="records"))
+        return jsonify({"latest_transactions": current_month_json})
+    except plaid.ApiException as e:
+        return jsonify(json.loads(e.body))
+
+
+@app.route("/api/new_transactions", methods=["POST"])
+def get_new_transactions():
+    user = User.query.first()
+    if not user:
+        return jsonify({"error": "User not found"}), 404
+    try:
+        if not user.cursor:
+            cursor = ""
+        else:
+            cursor = user.cursor
+
+        added = []
+        modified = []
+        removed = []
+        has_more = True
+
+        while has_more:
+            request = TransactionsSyncRequest(
+                access_token=user.access_token,
+                cursor=cursor,
+            )
+            response = client.transactions_sync(request).to_dict()
+            added.extend(response["added"])
+            modified.extend(response["modified"])
+            removed.extend(response["removed"])
+            has_more = response["has_more"]
+            cursor = response["next_cursor"]
+        if len(added) > 0:
+            df = pd.DataFrame(added)
+            # Get current date
+            today = datetime.today().date()
+
+            # Get the first and last date of the current month
+            first_day_of_month = today.replace(day=1)
+            last_day_of_month = (first_day_of_month + pd.offsets.MonthEnd(0)).date()
+
+            # Filter and sort the DataFrame
+            current_month_df = df[
+                (df["date"] >= first_day_of_month) & (df["date"] <= last_day_of_month)
+            ].sort_values(by="date")
+
+            current_month_json = json.loads(current_month_df.to_json(orient="records"))
+
+            for tx in current_month_json:
+                tx_date = pd.to_datetime(tx["date"], unit="ms")
+
+                new_tx = NewTx(
+                    name=tx["name"],
+                    amount=tx["amount"],
+                    category=tx["category"][0],
+                    category_id=int(tx["category_id"]),
+                    date=tx_date,
+                )
+
+                db.session.add(new_tx)
+                db.session.commit()
+
+            user.cursor = cursor
+            db.session.add(user)
+            db.session.commit()
+
+            return jsonify({"latest_transactions": current_month_json})
+        else:
+            return jsonify({"latest_transactions": []})
+    except plaid.ApiException as e:
+        return jsonify(json.loads(e.body))
+
+
+def hourlyCheck():
+    with app.app_context():
+        print("checkpoint 0")
+        get_new_transactions()
+        current_date = datetime.now(timezone.utc)
+        current_month = current_date.replace(
+            day=1, hour=0, minute=0, second=0, microsecond=0
+        )
+
+        # Query the user
+        user = User.query.first()
+        print("checkpoint 1")
+        if user:
+            user_current_month = user.currentMonth.replace(
+                day=1, hour=0, minute=0, second=0, microsecond=0, tzinfo=timezone.utc
+            )
+            # Check if the currentMonth field is different from the current month
+            if user_current_month != current_month:
+                print("months not equal. Clearing db...")
+                # Clear the NewTx database
+                NewTx.query.delete()
+                ApprovedTxs.query.delete()
+                # Update user's currentMonth to the current month
+                user.currentMonth = current_date
+                db.session.add(user)
+            print("checkpoint 2")
+            # Check the number of observations in the NewTx database
+            new_tx_count = NewTx.query.count()
+            if new_tx_count > 0:
+                user.needsReconcile = True
+                sendText(
+                    "You have txs that need to be reconciled. Text ‘reconcile’ to begin"
+                )
+            else:
+                user.needsReconcile = False
+
+            db.session.add(user)
+            db.session.commit()
+
+
+def run_hourly_check():
+    print("Starting hourly check...")
+
+    hourlyCheck()
+    Timer(3600, run_hourly_check).start()
+
+
+def sendText(msg):
+    client = Client(ACCOUNT_SID, TWILIO_AUTH)
+    client.messages.create(to=USER_PHONE_NUM, from_=TWILIO_NUM, body=msg)
+
+
+def getBudget():
+    BUDGET = json.loads(os.getenv("BUDGET"))
+    budget_df = pd.DataFrame(list(BUDGET.items()), columns=["category", "budget"])
+
+    approved_transactions = ApprovedTxs.query.all()
+
+    # Convert the query result to a list of dictionaries
+    data = [
+        {
+            "name": tx.name,
+            "amount": tx.amount,
+            "category": tx.category,
+            "category_id": tx.category_id,
+            "date": tx.date,
+        }
+        for tx in approved_transactions
+    ]
+
+    # Convert the list of dictionaries to a pandas DataFrame
+    df = pd.DataFrame(data)
+    df = df.groupby("category")["amount"].sum().reset_index()
+    df = df.sort_values(by="amount", ascending=False)
+
+    merged_df = pd.merge(df, budget_df, on="category", how="left")
+    merged_df["budget"] = merged_df["budget"].fillna(0)
+
+    message_lines = []
+    for index, row in merged_df.iterrows():
+        line = f"{row['category']}: {row['amount']}/{row['budget']}"
+        message_lines.append(line)
+    message = "\n".join(message_lines)
+
+    return message
+
+
+# Modify the reconcile function to handle state
+def reconcile():
+    transactions = NewTx.query.all()
+    user = User.query.first()
+
+    if not transactions or not user:
+        return jsonify({"status": "No transactions or user not found"}), 404
+
+    user.currentlyReconciling = True
+    db.session.add(user)
+    db.session.commit()
+
+    # Start reconciling the first transaction
+    if transactions:
+        tx = transactions[0]
+        user.currentTx = tx.name
+        db.session.add(user)
+        db.session.commit()
+        send_transaction_message(tx)
+
+    return jsonify({"status": "Reconciliation started"}), 200
+
+
+# Function to send transaction message
+def send_transaction_message(tx):
+    message = (
+        f"Transaction: {tx.name}\n"
+        f"Amount: {tx.amount}\n"
+        f"Category: {tx.category}\n"
+        f"Date: {tx.date.strftime('%Y-%m-%d')}\n\n"
+        "Reply with the transaction name and new details (amount, category) if you want to adjust, "
+        "or just reply 'approve' to approve this transaction."
+    )
+    sendText(message)
+
+
+# Update the sms_reply route to handle responses
+@app.route("/sms", methods=["GET", "POST"])
+def sms_reply():
+    user = User.query.first()
+    incoming_msg = request.values.get("Body", "").strip()
+    resp = MessagingResponse()
+
+    if user.currentlyReconciling:
+        tx = NewTx.query.filter_by(name=user.currentTx).first()
+        if incoming_msg.lower() == "approve":
+            approved_tx = ApprovedTxs(
+                name=tx.name,
+                amount=tx.amount,
+                category=tx.category,
+                category_id=tx.category_id,
+                date=tx.date,
+            )
+            db.session.add(approved_tx)
+            db.session.commit()
+            NewTx.query.filter_by(name=tx.name).delete()
+            db.session.commit()
+        else:
+            parts = incoming_msg.split(",")
+            if len(parts) == 2:
+                tx_amount, tx_category = parts
+                tx.amount = float(tx_amount.strip())
+                if tx_category.lower() != "same":
+                    tx.category = tx_category.strip()
+
+                db.session.add(tx)
+                db.session.commit()
+
+                approved_tx = ApprovedTxs(
+                    name=tx.name,
+                    amount=tx.amount,
+                    category=tx.category,
+                    category_id=tx.category_id,
+                    date=tx.date,
+                )
+                db.session.add(approved_tx)
+                db.session.commit()
+                NewTx.query.filter_by(name=tx.name).delete()
+                db.session.commit()
+
+        # Check if there are more transactions to reconcile
+        next_tx = NewTx.query.first()
+        if next_tx:
+            user.currentTx = next_tx.name
+            db.session.add(user)
+            db.session.commit()
+            send_transaction_message(next_tx)
+        else:
+            user.currentlyReconciling = False
+            user.needsReconcile = False
+            user.currentTx = None
+            db.session.add(user)
+            db.session.commit()
+            resp.message("Reconciliation completed.")
+
+    else:
+        if incoming_msg.lower() == "budget" and user.needsReconcile == False:
+            budget = getBudget()
+            resp.message(budget)
+
+        elif incoming_msg.lower() == "reconcile" and user.needsReconcile == True:
+            reconcile()
+
+        elif incoming_msg.lower() != "reconcile" and user.needsReconcile == True:
+            resp.message(
+                "Please type 'reconcile' to begin reconciling. No other actions can take place until you reconcile your transactions."
+            )
+
+        elif incoming_msg.lower() != "budget" and user.needsReconcile == False:
+            resp.message(
+                "Currently the only available command is 'budget' to retrieve your current budget scenario"
+            )
+
+    return str(resp)
+
 if __name__ == "__main__":
     app.run(port=PORT, debug=True)
